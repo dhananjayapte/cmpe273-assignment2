@@ -1,5 +1,13 @@
 package edu.sjsu.cmpe.library.api.resources;
 
+import java.text.MessageFormat;
+
+import javax.jms.Connection;
+import javax.jms.DeliveryMode;
+import javax.jms.Destination;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
 import javax.validation.Valid;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -30,15 +38,23 @@ import edu.sjsu.cmpe.library.repository.BookRepositoryInterface;
 public class BookResource {
     /** bookRepository instance */
     private final BookRepositoryInterface bookRepository;
-
+    private final Connection connection;
+    private final String libraryName;
+	private final Destination destination;
     /**
      * BookResource constructor
      * 
      * @param bookRepository
      *            a BookRepository instance
+     * @param queueName 
+     * @param connection 
+     * @param dest 
      */
-    public BookResource(BookRepositoryInterface bookRepository) {
+    public BookResource(BookRepositoryInterface bookRepository, Connection connection, Destination dest, String libraryName) {
 	this.bookRepository = bookRepository;
+	this.connection = connection;
+	this.libraryName = libraryName;
+	this.destination = dest;
     }
 
     @GET
@@ -77,10 +93,10 @@ public class BookResource {
     public BooksDto getAllBooks() {
 	BooksDto booksResponse = new BooksDto(bookRepository.getAllBooks());
 	booksResponse.addLink(new LinkDto("create-book", "/books", "POST"));
-
+	
 	return booksResponse;
     }
-
+  
     @PUT
     @Path("/{isbn}")
     @Timed(name = "update-book-status")
@@ -88,10 +104,31 @@ public class BookResource {
 	    @DefaultValue("available") @QueryParam("status") Status status) {
 	Book book = bookRepository.getBookByISBN(isbn.get());
 	book.setStatus(status);
-
+	
 	BookDto bookResponse = new BookDto(book);
 	String location = "/books/" + book.getIsbn();
+		
 	bookResponse.addLink(new LinkDto("view-book", location, "GET"));
+	if(status.getValue().equalsIgnoreCase("lost")){
+		try{
+		connection.start();
+		Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+		
+		MessageProducer producer = session.createProducer(destination);
+		producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+		Object[] arg =  {libraryName,isbn.get()};
+		MessageFormat form =  new MessageFormat("{0}:{1}");
+		String message = form.format(arg);
+		TextMessage msg = session.createTextMessage(message);
+		msg.setLongProperty("id", System.currentTimeMillis());
+		producer.send(msg);
+		producer.setTimeToLive(200000);
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		
+	}
 
 	return Response.status(200).entity(bookResponse).build();
     }

@@ -20,7 +20,7 @@ public class BookRepository implements BookRepositoryInterface {
 
     public BookRepository() {
 	bookInMemoryMap = seedData();
-	isbnKey = 0;
+	isbnKey = 2;
     }
 
     private ConcurrentHashMap<Long, Book> seedData(){
@@ -105,5 +105,17 @@ public class BookRepository implements BookRepositoryInterface {
     public void delete(Long isbn) {
 	bookInMemoryMap.remove(isbn);
     }
+
+	@Override
+	public void updateLibrary(Book receivedBook) {
+		if(bookInMemoryMap.containsKey(receivedBook.getIsbn())){
+			Book tempBook = bookInMemoryMap.get(receivedBook.getIsbn());
+			if("lost".equalsIgnoreCase(tempBook.getStatus().getValue())){
+				bookInMemoryMap.put(receivedBook.getIsbn(), receivedBook);
+			}
+		}else{
+			bookInMemoryMap.putIfAbsent(receivedBook.getIsbn(), receivedBook);
+		}
+	}
 
 }

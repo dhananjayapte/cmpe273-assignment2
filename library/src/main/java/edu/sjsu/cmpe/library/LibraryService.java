@@ -1,5 +1,10 @@
 package edu.sjsu.cmpe.library;
 
+import javax.jms.Connection;
+import javax.jms.Destination;
+
+import org.fusesource.stomp.jms.StompJmsConnectionFactory;
+import org.fusesource.stomp.jms.StompJmsDestination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,9 +14,11 @@ import com.yammer.dropwizard.config.Bootstrap;
 import com.yammer.dropwizard.config.Environment;
 import com.yammer.dropwizard.views.ViewBundle;
 
+import de.spinscale.dropwizard.jobs.JobsBundle;
 import edu.sjsu.cmpe.library.api.resources.BookResource;
 import edu.sjsu.cmpe.library.api.resources.RootResource;
 import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
+import edu.sjsu.cmpe.library.jobs.TopicListener;
 import edu.sjsu.cmpe.library.repository.BookRepository;
 import edu.sjsu.cmpe.library.repository.BookRepositoryInterface;
 import edu.sjsu.cmpe.library.ui.resources.HomeResource;
@@ -26,9 +33,10 @@ public class LibraryService extends Service<LibraryServiceConfiguration> {
 
     @Override
     public void initialize(Bootstrap<LibraryServiceConfiguration> bootstrap) {
-	bootstrap.setName("library-service");
-	bootstrap.addBundle(new ViewBundle());
-	bootstrap.addBundle(new AssetsBundle());
+		bootstrap.setName("library-service");
+		bootstrap.addBundle(new ViewBundle());
+		bootstrap.addBundle(new AssetsBundle());
+		bootstrap.addBundle(new JobsBundle("edu.sjsu.cmpe.library.jobs"));
     }
 
     @Override
@@ -41,14 +49,24 @@ public class LibraryService extends Service<LibraryServiceConfiguration> {
 		configuration.getLibraryName(), queueName,
 		topicName);
 	// TODO: Apollo STOMP Broker URL and login
+	StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
+	factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":" + configuration.getApolloPort());
 
+	Connection connection = factory.createConnection(configuration.getApolloUser(), configuration.getApolloPassword());
+	
+	Destination dest = new StompJmsDestination(configuration.getStompQueueName());
 	/** Root API */
 	environment.addResource(RootResource.class);
 	/** Books APIs */
 	BookRepositoryInterface bookRepository = new BookRepository();
-	environment.addResource(new BookResource(bookRepository));
+	environment.addResource(new BookResource(bookRepository,connection,dest,configuration.getLibraryName()));
 
 	/** UI Resources */
 	environment.addResource(new HomeResource(bookRepository));
+	
+	/** Initialize TopicListener Variables**/
+	TopicListener.configuration = configuration;
+	TopicListener.bookRepository = bookRepository;
+	
     }
 }
