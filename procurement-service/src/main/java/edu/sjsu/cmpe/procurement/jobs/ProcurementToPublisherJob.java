@@ -125,23 +125,47 @@ public class ProcurementToPublisherJob extends Job {
 		StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
 		factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":"
 				+ configuration.getApolloPort());
-		Connection connection;
+		Connection connection = null;
+		Session session = null; 
+		MessageProducer producer = null;
 		try {
 			connection = factory.createConnection(configuration.getApolloUser(),
 					configuration.getApolloPassword());
 			connection.start();
 			
-			Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-			MessageProducer producer = session.createProducer(dest);
+			session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			producer = session.createProducer(dest);
 			producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
 
 			TextMessage msg = session.createTextMessage(tempJSON);
 			msg.setLongProperty("id", System.currentTimeMillis());
 			producer.send(msg);
 			log.info("Msg sent to topics");
-			connection.close();
 		} catch (JMSException e) {
 			e.printStackTrace();
+		}finally{
+			if(producer!=null){
+				try {
+					producer.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
+			if(session!=null){
+				try {
+					session.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
+			if(connection!=null){
+				try {
+					connection.stop();
+					connection.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 

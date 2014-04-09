@@ -1,6 +1,5 @@
 package edu.sjsu.cmpe.library;
 
-import javax.jms.Connection;
 import javax.jms.Destination;
 
 import org.fusesource.stomp.jms.StompJmsConnectionFactory;
@@ -42,31 +41,29 @@ public class LibraryService extends Service<LibraryServiceConfiguration> {
     @Override
     public void run(LibraryServiceConfiguration configuration,
 	    Environment environment) throws Exception {
-	// This is how you pull the configurations from library_x_config.yml
-	String queueName = configuration.getStompQueueName();
-	String topicName = configuration.getStompTopicName();
-	log.debug("{} - Queue name is {}. Topic name is {}",
-		configuration.getLibraryName(), queueName,
-		topicName);
-	// TODO: Apollo STOMP Broker URL and login
-	StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
-	factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":" + configuration.getApolloPort());
-
-	Connection connection = factory.createConnection(configuration.getApolloUser(), configuration.getApolloPassword());
+		// This is how you pull the configurations from library_x_config.yml
+		String queueName = configuration.getStompQueueName();
+		String topicName = configuration.getStompTopicName();
+		log.debug("{} - Queue name is {}. Topic name is {}",
+			configuration.getLibraryName(), queueName,
+			topicName);
+		// TODO: Apollo STOMP Broker URL and login
+		StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
+		factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":" + configuration.getApolloPort());
 	
-	Destination dest = new StompJmsDestination(configuration.getStompQueueName());
-	/** Root API */
-	environment.addResource(RootResource.class);
-	/** Books APIs */
-	BookRepositoryInterface bookRepository = new BookRepository();
-	environment.addResource(new BookResource(bookRepository,connection,dest,configuration.getLibraryName()));
-
-	/** UI Resources */
-	environment.addResource(new HomeResource(bookRepository));
+		Destination dest = new StompJmsDestination(configuration.getStompQueueName());
+		/** Root API */
+		environment.addResource(RootResource.class);
+		/** Books APIs */
+		BookRepositoryInterface bookRepository = new BookRepository();
+		environment.addResource(new BookResource(bookRepository,configuration,dest,configuration.getLibraryName()));
 	
-	/** Initialize TopicListener Variables**/
-	TopicListener.configuration = configuration;
-	TopicListener.bookRepository = bookRepository;
+		/** UI Resources */
+		environment.addResource(new HomeResource(bookRepository));
+		
+		/** Initialize TopicListener Variables**/
+		TopicListener.configuration = configuration;
+		TopicListener.bookRepository = bookRepository;
 	
     }
 }

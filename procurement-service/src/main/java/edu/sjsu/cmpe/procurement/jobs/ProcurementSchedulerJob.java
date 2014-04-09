@@ -2,6 +2,7 @@ package edu.sjsu.cmpe.procurement.jobs;
 
 import javax.jms.Connection;
 import javax.jms.Destination;
+import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
@@ -27,18 +28,21 @@ public class ProcurementSchedulerJob extends Job {
 
 	@Override
 	public void doJob() {
+		Connection connection = null;
+		Session session = null;
+		MessageConsumer consumer = null;
 		try {
 			StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
 			factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":"
 					+ configuration.getApolloPort());
-			Connection connection = factory.createConnection(configuration.getApolloUser(),
+			connection = factory.createConnection(configuration.getApolloUser(),
 					configuration.getApolloPassword());
 
 			connection.start();
-			Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 			Destination dest = new StompJmsDestination(configuration.getStompQueueName());
 
-			MessageConsumer consumer = session.createConsumer(dest);
+			consumer = session.createConsumer(dest);
 			log.info("Waiting for messages from /queue/12667.book.orders....");
 			long waitUntil = 5; // wait for 5 sec
 			while (true) {
@@ -58,10 +62,33 @@ public class ProcurementSchedulerJob extends Job {
 					log.error("Unexpected message type: "+ msg.getClass());
 				}
 			} // end while loop
-			connection.close();
+			
 			log.info("Done");
 		} catch (Exception e) {
 			e.printStackTrace();
+		}finally{
+			if(consumer!=null){
+				try {
+					consumer.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
+			if(session!=null){
+				try {
+					session.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
+			if(connection!=null){
+				try {
+					connection.stop();
+					connection.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 }

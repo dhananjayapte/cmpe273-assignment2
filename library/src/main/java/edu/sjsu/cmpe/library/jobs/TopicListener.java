@@ -28,20 +28,25 @@ public class TopicListener extends Job {
 	public static LibraryServiceConfiguration configuration;
 	public static BookRepositoryInterface bookRepository;
 	private final Logger log = LoggerFactory.getLogger(getClass());
-	
+
 	@Override
 	public void doJob() {
 		StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
 		factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":"
 				+ configuration.getApolloPort());
 		Connection connection = null;
+		Session session = null;
+		MessageConsumer consumer = null;
 		try {
-			connection = factory.createConnection(configuration.getApolloUser(),
+			connection = factory.createConnection(
+					configuration.getApolloUser(),
 					configuration.getApolloPassword());
 			connection.start();
-			Destination dest = new StompJmsDestination(configuration.getStompTopicName());
-			Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-			MessageConsumer consumer = session.createConsumer(dest);
+			Destination dest = new StompJmsDestination(
+					configuration.getStompTopicName());
+			session = connection.createSession(false,
+					Session.AUTO_ACKNOWLEDGE);
+			consumer = session.createConsumer(dest);
 			long waitUntil = 5000;
 			String receivedMsg = null;
 			while (true) {
@@ -61,7 +66,7 @@ public class TopicListener extends Job {
 							break;
 						}
 					} else {
-						log.error("Unexpected message type: "+ msg.getClass());
+						log.error("Unexpected message type: " + msg.getClass());
 					}
 
 					if (receivedMsg != null) {
@@ -87,11 +92,29 @@ public class TopicListener extends Job {
 			}
 		} catch (JMSException e) {
 			e.printStackTrace();
-		}
-		try {
-			connection.close();
-		} catch (JMSException e) {
-			e.printStackTrace();
+		} finally {
+				if(consumer!=null){
+					try {
+						consumer.close();
+					} catch (JMSException e) {
+						e.printStackTrace();
+					}
+				}
+				if(session!=null){
+					try {
+						session.close();
+					} catch (JMSException e) {
+						e.printStackTrace();
+					}
+				}
+				if(connection!=null){
+					try {
+						connection.stop();
+						connection.close();
+					} catch (JMSException e) {
+						e.printStackTrace();
+					}
+				}
 		}
 	}
 

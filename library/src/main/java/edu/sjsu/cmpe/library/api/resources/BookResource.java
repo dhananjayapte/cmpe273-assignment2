@@ -5,6 +5,7 @@ import java.text.MessageFormat;
 import javax.jms.Connection;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
+import javax.jms.JMSException;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
@@ -22,9 +23,12 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.fusesource.stomp.jms.StompJmsConnectionFactory;
+
 import com.yammer.dropwizard.jersey.params.LongParam;
 import com.yammer.metrics.annotation.Timed;
 
+import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
 import edu.sjsu.cmpe.library.domain.Book;
 import edu.sjsu.cmpe.library.domain.Book.Status;
 import edu.sjsu.cmpe.library.dto.BookDto;
@@ -38,23 +42,26 @@ import edu.sjsu.cmpe.library.repository.BookRepositoryInterface;
 public class BookResource {
     /** bookRepository instance */
     private final BookRepositoryInterface bookRepository;
-    private final Connection connection;
+    //private final Connection connection;
     private final String libraryName;
 	private final Destination destination;
+	private LibraryServiceConfiguration configuration;
+	
     /**
      * BookResource constructor
      * 
      * @param bookRepository
      *            a BookRepository instance
      * @param queueName 
-     * @param connection 
+     * @param configuration 
      * @param dest 
      */
-    public BookResource(BookRepositoryInterface bookRepository, Connection connection, Destination dest, String libraryName) {
+    public BookResource(BookRepositoryInterface bookRepository, LibraryServiceConfiguration configuration, Destination dest, String libraryName) {
 	this.bookRepository = bookRepository;
-	this.connection = connection;
+	//this.connection = connection;
 	this.libraryName = libraryName;
 	this.destination = dest;
+	this.configuration = configuration;
     }
 
     @GET
@@ -110,22 +117,56 @@ public class BookResource {
 		
 	bookResponse.addLink(new LinkDto("view-book", location, "GET"));
 	if(status.getValue().equalsIgnoreCase("lost")){
-		try{
-		connection.start();
-		Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+		Session session = null;
+		MessageProducer producer = null;
+		Connection connection = null;
+		StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
+		factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":"
+				+ configuration.getApolloPort());
 		
-		MessageProducer producer = session.createProducer(destination);
-		producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
-		Object[] arg =  {libraryName,isbn.get()};
-		MessageFormat form =  new MessageFormat("{0}:{1}");
-		String message = form.format(arg);
-		TextMessage msg = session.createTextMessage(message);
-		msg.setLongProperty("id", System.currentTimeMillis());
-		producer.send(msg);
-		producer.setTimeToLive(200000);
+		try{
+			connection = factory.createConnection(
+					configuration.getApolloUser(),
+					configuration.getApolloPassword());
+			connection.start();
+			session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			
+			producer = session.createProducer(destination);
+			producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+			
+			Object[] arg =  {libraryName,isbn.get()};
+			MessageFormat form =  new MessageFormat("{0}:{1}");
+			String message = form.format(arg);
+			TextMessage msg = session.createTextMessage(message);
+			msg.setLongProperty("id", System.currentTimeMillis());
+			producer.send(msg);
+			producer.setTimeToLive(200000);
 		}
 		catch(Exception e){
 			e.printStackTrace();
+		}finally{
+			if(producer!=null){
+				try {
+					producer.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				} 
+			}
+			if(session!=null){
+				try {
+					session.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
+			if(connection!=null){
+				try {
+					connection.stop();
+					connection.close();
+				} catch (JMSException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 		
 	}
