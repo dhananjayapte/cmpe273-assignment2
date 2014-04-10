@@ -1,4 +1,4 @@
-package edu.sjsu.cmpe.library.jobs;
+package edu.sjsu.cmpe.library.listener;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -17,20 +17,16 @@ import org.fusesource.stomp.jms.message.StompJmsMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import de.spinscale.dropwizard.jobs.Job;
-import de.spinscale.dropwizard.jobs.annotations.Every;
 import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
 import edu.sjsu.cmpe.library.domain.Book;
 import edu.sjsu.cmpe.library.repository.BookRepositoryInterface;
 
-@Every("350s")
-public class TopicListener extends Job {
+public class TopicListener {
 	public static LibraryServiceConfiguration configuration;
 	public static BookRepositoryInterface bookRepository;
 	private final Logger log = LoggerFactory.getLogger(getClass());
 
-	@Override
-	public void doJob() {
+	public void listenToTopic() {
 		StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
 		factory.setBrokerURI("tcp://" + configuration.getApolloHost() + ":"
 				+ configuration.getApolloPort());

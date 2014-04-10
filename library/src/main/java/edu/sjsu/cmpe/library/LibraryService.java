@@ -17,7 +17,8 @@ import de.spinscale.dropwizard.jobs.JobsBundle;
 import edu.sjsu.cmpe.library.api.resources.BookResource;
 import edu.sjsu.cmpe.library.api.resources.RootResource;
 import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
-import edu.sjsu.cmpe.library.jobs.TopicListener;
+import edu.sjsu.cmpe.library.listener.TopicListener;
+import edu.sjsu.cmpe.library.listener.TopicListenerThread;
 import edu.sjsu.cmpe.library.repository.BookRepository;
 import edu.sjsu.cmpe.library.repository.BookRepositoryInterface;
 import edu.sjsu.cmpe.library.ui.resources.HomeResource;
@@ -64,6 +65,8 @@ public class LibraryService extends Service<LibraryServiceConfiguration> {
 		/** Initialize TopicListener Variables**/
 		TopicListener.configuration = configuration;
 		TopicListener.bookRepository = bookRepository;
+		TopicListenerThread.log = log;
+		TopicListenerThread.startThread(new TopicListener());
 	
     }
 }
